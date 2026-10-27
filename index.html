@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0e1424">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Temario">
+<meta name="robots" content="noindex, nofollow">
+<title>Historias del temario</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icono-192.png">
+<link rel="apple-touch-icon" href="icono-180.png">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: linear-gradient(#0e1424, #28345c); color: #f1ede4; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 420px; margin: 0 auto; padding: calc(40px + env(safe-area-inset-top)) 20px 40px; text-align: center; }
+  img { width: 112px; height: 112px; border-radius: 26px; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+  h1 { font-size: 24px; margin: 18px 0 4px; }
+  .sub { color: #b9bfcc; font-size: 14px; margin: 0 0 26px; line-height: 1.45; }
+  form { display: grid; gap: 10px; text-align: left; }
+  label { font-size: 13px; color: #b9bfcc; }
+  input[type=password] { width: 100%; font: inherit; font-size: 17px; padding: 12px 14px; border-radius: 12px; border: 1px solid #3a4058; background: #1b2033; color: #fff; }
+  .recordar { display: flex; gap: 8px; align-items: center; font-size: 13.5px; color: #d8dce6; }
+  button { font: inherit; font-weight: 800; font-size: 16px; padding: 13px; border: 0; border-radius: 12px; background: #e8b04a; color: #1b1b1b; cursor: pointer; }
+  button.sec { background: #2f3549; color: #fff; font-size: 14px; padding: 10px; }
+  button:disabled { opacity: .6; cursor: default; }
+  .error { color: #ff8a7a; font-weight: 700; font-size: 14px; min-height: 20px; }
+  .barra { height: 10px; border-radius: 99px; background: #2a2f42; overflow: hidden; margin: 14px 0 6px; }
+  .barra div { height: 100%; width: 0; background: #3fbf6a; transition: width .2s; }
+  .nota { font-size: 12.5px; color: #9aa0b0; line-height: 1.5; margin-top: 22px; text-align: left; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <img src="icono-512.png" alt="">
+  <h1>Historias del temario</h1>
+  <p class="sub" id="sub">Psicólogo/a General Sanitario/a · Ayuntamiento de Madrid</p>
+
+  <form id="form" hidden>
+    <label for="clave">Contraseña</label>
+    <input type="password" id="clave" autocomplete="current-password" required autofocus>
+    <label class="recordar"><input type="checkbox" id="recordar" checked> Recordar en este dispositivo (para instalar las actualizaciones solas)</label>
+    <div class="error" id="error"></div>
+    <button id="entrar">Descargar y jugar</button>
+    <button type="button" class="sec" id="usarInstalada" hidden>Jugar con la versión ya instalada</button>
+  </form>
+
+  <div id="progreso" hidden>
+    <div id="txt">Descargando…</div>
+    <div class="barra"><div id="barra"></div></div>
+    <div class="nota" style="text-align:center;margin-top:6px" id="det"></div>
+  </div>
+
+  <p class="nota" id="nota">Se descarga una sola vez (unos 8 MB) y después funciona <b>sin internet</b>.<br>
+    <b>iPhone / iPad:</b> primero Compartir → «Añadir a pantalla de inicio», abre el icono «Temario» y pon ahí la contraseña.<br>
+    <b>Android:</b> ⋮ → «Instalar aplicación». <b>PC:</b> icono de instalar de Chrome / Edge.</p>
+</main>
+<script>
+const VERSION = '20261027-c5bcc6';
+const CACHE = 'temario-historias-' + VERSION;
+const $ = id => document.getElementById(id);
+const instalada = localStorage.getItem('loci.historias.version');
+const sinSoporte = !('serviceWorker' in navigator) || !window.caches || !crypto.subtle || !window.DecompressionStream;
+
+const b64 = { a: u => btoa(String.fromCharCode(...new Uint8Array(u))), de: s => Uint8Array.from(atob(s), c => c.charCodeAt(0)) };
+const TIPOS = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', json: 'application/json',
+  webmanifest: 'application/manifest+json', png: 'image/png', svg: 'image/svg+xml', jpg: 'image/jpeg', webp: 'image/webp', woff2: 'font/woff2', txt: 'text/plain; charset=utf-8' };
+
+// Antes de entrar: sincronizar el progreso con los demás dispositivos (si la versión lo trae; máx. ~7 s)
+async function sincronizar() {
+  try {
+    $('progreso').hidden = false; $('form').hidden = true; $('txt').textContent = 'Sincronizando tu progreso…'; $('barra').style.width = '100%';
+    const s = await import('./app/js/sync.js');
+    await Promise.race([s.alAbrir(), new Promise(r => setTimeout(r, 7000))]);
+  } catch (err) { console.warn('sync', err); }
+}
+const jugar = async () => { await sincronizar(); location.replace('app/index.html'); };
+
+async function descargar(texto) {
+  $('progreso').hidden = false; $('form').hidden = true;
+  $('txt').textContent = texto;
+  const r = await fetch('juego.bin?v=' + VERSION, { cache: 'no-cache' });
+  if (!r.ok) throw new Error('No se pudo descargar el juego (' + r.status + ')');
+  const total = +r.headers.get('content-length') || 0, partes = [];
+  let n = 0;
+  const lector = r.body.getReader();
+  for (;;) {
+    const { done, value } = await lector.read();
+    if (done) break;
+    partes.push(value); n += value.length;
+    if (total) { $('barra').style.width = Math.round((n / total) * 80) + '%'; $('det').textContent = `${(n / 1e6).toFixed(1)} / ${(total / 1e6).toFixed(1)} MB`; }
+  }
+  const datos = new Uint8Array(n);
+  let o = 0; for (const p of partes) { datos.set(p, o); o += p.length; }
+  return datos;
+}
+
+async function claves(clave, sal, iter) {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(clave), 'PBKDF2', false, ['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: sal, iterations: iter }, base, 512));
+}
+
+// juego.bin = «TEMARIO1» · sal(16) · iv(16) · iteraciones(4) · AES-256-CBC(zlib(paquete)) · HMAC-SHA256(32)
+async function abrir(datos, material) {
+  if (new TextDecoder().decode(datos.slice(0, 8)) !== 'TEMARIO1') throw new Error('Archivo del juego dañado');
+  const sal = datos.slice(8, 24), iv = datos.slice(24, 40), iter = new DataView(datos.buffer).getUint32(40);
+  const cifrado = datos.slice(44, datos.length - 32), mac = datos.slice(datos.length - 32);
+  const k = typeof material === 'string' ? await claves(material, sal, iter) : material;
+  const kMac = await crypto.subtle.importKey('raw', k.slice(32), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+  if (!(await crypto.subtle.verify('HMAC', kMac, mac, datos.slice(0, datos.length - 32)))) { const e = new Error('Contraseña incorrecta'); e.clave = true; throw e; }
+  $('txt').textContent = 'Descifrando…'; $('barra').style.width = '85%';
+  const kAes = await crypto.subtle.importKey('raw', k.slice(0, 32), 'AES-CBC', false, ['decrypt']);
+  const comprimido = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, kAes, cifrado);
+  const paquete = new Uint8Array(await new Response(new Blob([comprimido]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer());
+  return { paquete, k };
+}
+
+async function guardar(paquete) {
+  $('txt').textContent = 'Guardando para usar sin conexión…'; $('barra').style.width = '92%';
+  const lh = new DataView(paquete.buffer).getUint32(0);
+  const indice = JSON.parse(new TextDecoder().decode(paquete.slice(4, 4 + lh)));
+  const inicio = 4 + lh, base = new URL('app/', location.href).href;
+  const c = await caches.open(CACHE);
+  let i = 0;
+  for (const [ruta, off, len] of indice.archivos) {
+    const ext = ruta.split('.').pop().toLowerCase();
+    await c.put(base + ruta, new Response(paquete.slice(inicio + off, inicio + off + len), { headers: { 'Content-Type': TIPOS[ext] ?? 'application/octet-stream' } }));
+    if (++i % 25 === 0) $('det').textContent = `${i} / ${indice.archivos.length} archivos`;
+  }
+  for (const k of await caches.keys()) if (k.startsWith('temario-historias-') && k !== CACHE) await caches.delete(k);
+  localStorage.setItem('loci.historias.version', VERSION);
+  localStorage.setItem('loci.historias.archivos', String(indice.archivos.length));
+  $('barra').style.width = '100%';
+}
+
+async function instalar(material, recordar) {
+  const datos = await descargar(instalada ? 'Descargando la actualización…' : 'Descargando el juego…');
+  const { paquete, k } = await abrir(datos, material);
+  await guardar(paquete);
+  if (recordar) localStorage.setItem('loci.historias.clave', b64.a(k)); else localStorage.removeItem('loci.historias.clave');
+  navigator.storage?.persist?.();
+  await navigator.serviceWorker.ready;
+  await jugar();
+}
+
+function pedirClave(msg) {
+  $('progreso').hidden = true; $('form').hidden = false;
+  if (msg) $('sub').innerHTML = msg;
+  $('clave').focus();
+}
+
+$('form').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  $('error').textContent = ''; $('entrar').disabled = true;
+  try { await instalar($('clave').value, $('recordar').checked); }
+  catch (err) { pedirClave(); $('error').textContent = err.message; $('entrar').disabled = false; if (err.clave) $('clave').select(); }
+});
+$('usarInstalada').onclick = jugar;
+
+(async () => {
+  // ¿Esta página es la última publicada? (GitHub puede servir una copia antigua hasta 10 min): si no, cargar la nueva
+  if (navigator.onLine) try {
+    const v = (await (await fetch('version.json?x=' + Date.now(), { cache: 'no-store' })).json()).version;
+    if (v && v !== VERSION && sessionStorage.getItem('loci.recarga') !== v) { sessionStorage.setItem('loci.recarga', v); return location.replace('./?v=' + v); }
+  } catch {}
+  if (sinSoporte) { $('sub').innerHTML = '<b>Este navegador no puede instalar el juego.</b><br>Usa Safari (iOS 16.4 o posterior), Chrome o Edge actualizados.'; $('nota').hidden = true; return; }
+  await navigator.serviceWorker.register('sw.js');
+  const hay = instalada && (await caches.has('temario-historias-' + instalada));
+  if (hay && instalada === VERSION) return jugar();
+  if (hay) { // hay una versión nueva publicada
+    $('usarInstalada').hidden = false;
+    const guardada = localStorage.getItem('loci.historias.clave');
+    if (guardada) {
+      try { return await instalar(b64.de(guardada), true); }
+      catch (err) { if (!err.clave) { console.warn(err); return jugar(); } localStorage.removeItem('loci.historias.clave'); }
+    }
+    return pedirClave('Hay una <b>versión nueva</b> del juego. Escribe la contraseña para actualizar.');
+  }
+  pedirClave();
+})();
+</script>
+</body>
+</html>

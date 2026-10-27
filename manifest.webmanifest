@@ -1,0 +1,34 @@
+{
+  "name": "Historias del temario",
+  "short_name": "Historias",
+  "description": "Palacio de la memoria para la oposición de Psicólogo/a General Sanitario/a del Ayuntamiento de Madrid: 90 temas, plan de estudio y tests.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": [
+    "fullscreen",
+    "standalone"
+  ],
+  "orientation": "any",
+  "background_color": "#0e1424",
+  "theme_color": "#0e1424",
+  "icons": [
+    {
+      "src": "icono-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icono-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icono-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

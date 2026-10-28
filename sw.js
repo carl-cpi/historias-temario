@@ -1,7 +1,7 @@
 // Service worker de la versión protegida con contraseña (GENERADO por preparar-web.py --github).
 // El juego llega cifrado (juego.bin); la página de entrada lo descifra y lo guarda en la caché «temario-historias-*».
 // Este service worker sirve el juego desde esa caché, sin red. La página de entrada se guarda también para abrirla sin conexión.
-const VERSION = '20261028-b1d693';
+const VERSION = '20261028-e509f0';
 const CARGADOR = 'temario-cargador-' + VERSION;
 const BASE = self.registration.scope;
 const PROPIOS = ['./', 'index.html', 'manifest.webmanifest', 'icono-192.png', 'icono-180.png', 'icono-512.png', 'icono-maskable-512.png'];
